@@ -8,12 +8,19 @@ from typing import Optional
 K = typing.TypeVar('K', bound=str | bytes | int | float)
 V = typing.TypeVar('V', bound=typing.Any)
 
+# TODO fully test
+
+
+# Some amount of code is coming from https://github.com/jhomswk/B_Tree/blob/master/b_tree.py,
+# debuged and tested by myself. You can get implementation from there, as it is not included
+
+
 
 class BTreeMap(collections.abc.MutableMapping, typing.Generic[K, V]):
     """
     Unique keys with data structure
     optimization of disk space storages
-    # >>>BTreeMap(BTreeMap.BNode([2][3]), 2)
+    # >>> BTreeMap(BTreeMap.BNode([2][3]), 2)
     """
 
     class BNode:
@@ -25,12 +32,12 @@ class BTreeMap(collections.abc.MutableMapping, typing.Generic[K, V]):
         @property
         def is_leaf(self) -> bool:
             """
-            >>>b_node = BTreeMap.BNode([2],[3])
-            >>>b_node.is_leaf
+            >>> b_node = BTreeMap.BNode([2],[3])
+            >>> b_node.is_leaf
             True
-            >>>a_node = BTreeMap.BNode([4],[5])
-            >>>c_node = BTreeMap.BNode([3],[2], b_node, a_node)
-            >>>c_node.is_leaf
+            >>> a_node = BTreeMap.BNode([4],[5])
+            >>> c_node = BTreeMap.BNode([3],[2], b_node, a_node)
+            >>> c_node.is_leaf
             False
 
             :return: if the node has no children
@@ -39,9 +46,27 @@ class BTreeMap(collections.abc.MutableMapping, typing.Generic[K, V]):
 
         @property
         def keys_count(self) -> int:
+            """
+            >>> b_node = BTreeMap.BNode([2],[3])
+            >>> b_node.keys_count
+            1
+            >>> dummy_node = BTreeMap.BNode([],[])
+            >>> dummy_node.keys_count
+            0
+            """
             return len(self.keys)
 
         def b_search(self, key: K) -> int:
+            """
+            >>> node = BTreeMap.BNode([3,4], [24,56], [7, 13])
+            >>> node.b_search(3)
+            0
+            >>> node.b_search(7)
+            2
+
+            :param key:
+            :return: index
+            """
             left = 0
             right = self.keys_count
             while right > left:
@@ -53,6 +78,15 @@ class BTreeMap(collections.abc.MutableMapping, typing.Generic[K, V]):
             return left
 
         def get_value(self, key: K) -> Optional[V]:
+            """
+            >>> node = BTreeMap.BNode([3,4], [24,56])
+            >>> node.get_value(4)
+            56
+            >>> node.get_value(5)
+
+            :param key:
+            :return:
+            """
             with suppress(ValueError):
                 index = self.keys.index(key)
                 return self.values[index]
@@ -128,7 +162,7 @@ class BTreeMap(collections.abc.MutableMapping, typing.Generic[K, V]):
         def __str__(self) -> str:
             return f'|{"|".join(map(str, self.keys))}|'
 
-        def subs_max(self) -> tuple[K, V]:
+        def subs_max(self) -> tuple[K, V] | None:
             """
             Returns the largest key in self's subtree.
             """
@@ -137,14 +171,15 @@ class BTreeMap(collections.abc.MutableMapping, typing.Generic[K, V]):
                 node = node.children[-1]
             return (node.keys[-1], node.values[-1]) if node.keys else None
 
-        def subs_min(self) -> tuple[K, V]:
+        def subs_min(self) -> tuple[K, V] | None:
             """
             Returns the smallest key in self's subtree.
             """
             node = self
             while not node.is_leaf:
                 node = node.children[0]
-            return (node.keys[0], node.values[0]) if node.keys else None
+            if node.keys:
+                return node.keys[0], node.values[0]
 
         def predecessor(self, index: int) -> typing.Self:
             """
@@ -166,6 +201,11 @@ class BTreeMap(collections.abc.MutableMapping, typing.Generic[K, V]):
 
         def delete(self, key) -> None:
             """
+            >>> node = BTreeMap.BNode([2,3],[4,7])
+            >>> node.delete(2)
+            >>> node.contains_key_at(2, node.b_search(2))
+            False
+
             Deletes key from self.
             """
             index = self.b_search(key)
@@ -209,33 +249,83 @@ class BTreeMap(collections.abc.MutableMapping, typing.Generic[K, V]):
 
     def __init__(self, root: BNode, order: int):
         #  math.ceil the t?
-        self.order = order  # released for odd orders
+        self.order = order  # released for odd orders only!
         self.root = root
         self.t = math.ceil(order / 2)
         self.min_keys = self.t - 1
+        self._iter_keys: list[K] = []
+        self._iter_ptr = 0
 
-    def __getitem__(self, item: K) -> Optional[typing.Self.BNode]:
-        return self.search(item)
+    def __getitem__(self, item: K) -> Optional[BNode]:
+        """
+        >>> btm = BTreeMap(BTreeMap.BNode([2],[3]), 5)
+        >>> btm[2]
+        3
+        >>> btm[4]
+
+        :param item:
+        :return:
+        """
+
+        return self.get_value(item)
 
     def __contains__(self, item: K) -> bool:
+        """
+        >>> btm = BTreeMap(BTreeMap.BNode([2],[3]), 7)
+        >>> 2 in btm
+        True
+        >>> 3 in btm
+        False
+        """
         return item in self.list_keys()
 
     def __len__(self) -> int:
         return len(list(self.list_keys()))
 
     def __setitem__(self, key: K, value: V) -> None:
+        """
+        >>> btm = BTreeMap(BTreeMap.BNode([2,5],[5,6]), 7)
+        >>> btm[4] = 23
+        >>> btm[4]
+        23
+        >>> btm.list_keys()
+        [2, 4, 5]
+
+        :param key:
+        :param value:
+        :return:
+        """
         self.insert(key, value)
 
     def __delitem__(self, key: K) -> None:
         self.delete(key)
 
+    def __iter__(self):
+        self._iter_keys = self.list_keys()
+        return self
+
+    def __next__(self):
+        try:
+            self._iter_ptr += 1
+            return self._iter_keys[self._iter_ptr - 1]
+        except IndexError as e:
+            raise StopIteration from e
+
     def list_keys(self) -> list[K]:
-        return list(self._get_keys(self.root))
+        # return list(self._get_keys(self.root))
+        return list(self.ordered_iter(self.root))
+
+    def ordered_iter(self, node):
+        if node.is_leaf:
+            for k in node.keys:
+                yield k
+            return
+        for i, child in enumerate(node.children[:-1]):
+            yield from self.ordered_iter(child)
+            yield node.keys[i]
+        yield from self.ordered_iter(node.children[-1])
 
     def _get_keys(self, node: BNode) -> typing.Iterator[K]:
-        # if node
-        # if node != self.root and node.keys_count < self.t - 1:
-        # import pdb; pdb.set_trace()
         for k in node.keys:
             yield k
         for child in node.children:
@@ -352,7 +442,7 @@ class BTreeMap(collections.abc.MutableMapping, typing.Generic[K, V]):
         node.delete(key)
 
 
-def main():
+def fuzz():
     for j in range(100):
         b_tree = BTreeMap(BTreeMap.BNode([47, 92], [11, 456]), 5)
         for i in range(1200):
@@ -395,15 +485,22 @@ def deletion_bug():
     l_ch = BTreeMap.BNode([0, 1, 2], [123, 1231, 6543])
     r_ch = BTreeMap.BNode([4, 5], [124123, 1231241])
     b_tree = BTreeMap(BTreeMap.BNode([3], [3141], l_ch, r_ch), 5)
-    b_tree.tree_map()
-    b_tree.delete(6)
-    b_tree.tree_map()
-    b_tree.delete(6)
-    b_tree.tree_map()
+    # keys = iter(b_tree)
+    for ks in b_tree:
+        print(ks, ' ', b_tree[ks])
+    # for i in range(2):
+    #     print(next(keys))
+    # for node in b_tree:
+    #     print(node)
+    # b_tree.tree_map()
+    # b_tree.delete(6)
+    # b_tree.tree_map()
+    # b_tree.delete(6)
+    # b_tree.tree_map()
 
 
-def fuzz():
-    for j in range(100):
+def fuzz1():
+    for _ in range(100):
         b_tree = BTreeMap(BTreeMap.BNode([47, 92], [11, 456]), 15)
 
         for i in range(1200):
@@ -425,5 +522,7 @@ def fuzz():
 
 if __name__ == '__main__':
     # fuzz()
-    deletion_bug()
-    print('ok')
+    doctest.testmode()  # type: ignore
+    # BTreeMap.BNode
+    # deletion_bug()
+    # print('ok')
